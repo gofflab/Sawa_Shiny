@@ -149,12 +149,24 @@ myTSNEPlotAlpha<-function(cds,markers=NULL,logMode=T,color_by="color",shape_by=N
     tmp<-merge(tmp,genes,by.x=0,by.y="Cell_ID")
     #print(head(tmp))
     p<-ggplot(tmp,aes(x=tSNE1_pos,y=tSNE2_pos))
-    if(is.null(shape_by)){
-      p + geom_point(aes_string(color=color_by,alpha="value"),stroke=0,size=cell_size) + facet_wrap('gene_short_name')+ theme_bw() + scale_color_brewer(palette="Set1") + monocle:::monocle_theme_opts() + scale_alpha(range=c(0.05,1)) 
-    }else{
-      p + geom_point(aes_string(color=color_by,alpha="value",stroke=0,shape=shape_by),size=cell_size) + facet_wrap('gene_short_name')+ theme_bw() + scale_color_brewer(palette="Set1")+ monocle:::monocle_theme_opts() + scale_alpha(range=c(0.05,1)) 
+    if(color_by %in% c('Animal_ID','Treatment','Plate')){
+      if(is.null(shape_by)){
+        p + geom_point(aes_string(color=color_by,alpha="value"),stroke=0,size=cell_size) + facet_wrap('gene_short_name')+ theme_bw() + scale_color_brewer(palette="Set1") + monocle:::monocle_theme_opts() + scale_alpha(range=c(0.05,1)) 
+      }
+      else{
+        p + geom_point(aes_string(color=color_by,alpha="value",stroke=0,shape=shape_by),size=cell_size) + facet_wrap('gene_short_name')+ theme_bw() + scale_color_brewer(palette="Set1")+ monocle:::monocle_theme_opts() + scale_alpha(range=c(0.05,1)) 
+      }
     }
-  }else{
+    else{
+      if(is.null(shape_by)){
+        p + geom_point(aes_string(color=color_by,size="value"),stroke=0) + facet_wrap('gene_short_name')+ theme_bw() + scale_color_brewer(palette="Set1") + monocle:::monocle_theme_opts() + scale_alpha(range=c(0.05,1)) 
+      }
+      else{
+        p + geom_point(aes_string(color=color_by,size="value",stroke=0,shape=shape_by)) + facet_wrap('gene_short_name')+ theme_bw() + scale_color_brewer(palette="Set1")+ monocle:::monocle_theme_opts() + scale_alpha(range=c(0.05,1)) 
+      }
+    }
+    }
+    else{
     p<-ggplot(tmp,aes(x=tSNE1_pos,y=tSNE2_pos))
     if(is.null(shape_by)){
       p + geom_point(aes_string(color=color_by),size=cell_size) + theme_bw() + scale_color_brewer(palette="Set1")+ monocle:::monocle_theme_opts() 
