@@ -1,0 +1,172 @@
+---
+title: "Sawa Microglia"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+    theme: spacelab
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(monocle)
+library(reshape2)
+library(stringr)
+library(ggbiplot)
+source("widgets.R")
+
+dat<-readRDS("Sawa_CDS.rds")
+factors<-c('Animal_ID','Treatment','Plate')
+```
+
+```{r var_init}
+cell_params_plot<-c("Treatment","Animal_ID","Ser_IL6_pg.mL","Plate","num_genes_expressed","mean_expr","total_mass","internal_scale","Size_Factor")
+```
+
+Gene Expression
+=======================================================================
+
+Column {.sidebar}
+-----------------------------------------------------------------------
+
+#### Select Genes
+```{r}
+textInput("marker_genes", label = "Genes (comma-separated):",
+          value=NULL,
+          placeholder="e.g. Saa3,Lcn2"
+            )
+
+selectInput("color_by", label = "Color by:",
+            choices = cell_params_plot, selected = "Treatment")
+
+selectInput("shape_by", label = "Shape by:",
+            choices = cell_params_plot, selected = "Treatment")
+```
+
+#### Expression levels
+```{r}
+radioButtons("bar_type",label="Plot type:",
+            choices=list("Summary Bar plot"=2,"Per cell"=1),
+            selected=2)
+
+checkboxInput("log_mode",label="Log transform:",
+              value=FALSE)
+
+selectInput("bar_metric",label="Summary statistic:",
+            choices=c("mean","median"),
+            selected="mean")
+```
+
+#### Components
+```{r}
+sliderInput("pca_x_choice",label="x",
+            min=1,max=20,value=1,step=1,round=TRUE)
+
+sliderInput("pca_y_choice",label="y",
+            min=1,max=20,value=2,step=1,round=TRUE)
+```
+
+Column {.tabset}
+-----------------------------------------------------------------------
+
+### tSNE
+
+```{r}
+renderPlot({
+  #Process marker_genes input  
+  if(input$marker_genes=="")
+      markers<-NULL
+  else
+      markers<-str_trim(unlist(str_split(input$marker_genes,",")))
+  
+  #Process color choice
+  if(length(levels(pData(dat)[[input$color_by]]))<10)
+    palette<- scale_color_brewer(palette="Set1")
+  else
+    palette<- scale_color_discrete()
+  
+  if(input$color_by %in% factors)
+    palette<-palette
+  else
+    palette<- scale_color_continuous()
+  
+  myTSNEPlotAlpha(dat,markers=markers,color=input$color_by,shape=input$shape_by,cell_size=2,scale=T) + 
+    palette
+})
+```
+
+### PCA
+```{r}
+dat.pca<-reactive({
+  prcomp(t(log2(exprs(dat)+1)),center=T,scale=T)
+})
+
+renderPlot({
+  #Process color choice
+  if(length(levels(pData(dat)[[input$color_by]]))<10)
+    palette<- scale_color_brewer(palette="Set1")
+  else
+    palette<- scale_color_discrete()
+  
+  if(input$color_by %in% factors)
+    palette<-palette
+  else
+    palette<- scale_color_continuous()
+  
+  ggbiplot(dat.pca(),choices=c(input$pca_x_choice,input$pca_y_choice),scale=0,groups=pData(dat)[[input$color_by]],ellipse=T,var.axes=F) + monocle:::monocle_theme_opts() + palette + theme(legend.position=c(0.05,0.9))
+})
+  
+```
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Expression levels
+
+```{r}
+renderPlot({
+  #Process marker_genes input  
+  if(input$marker_genes=="")
+      markers<-NULL
+  else
+      markers<-str_trim(unlist(str_split(input$marker_genes,",")))
+
+  #Process color choice
+    #Process color choice
+  if(length(levels(pData(dat)[[input$color_by]]))<10) {
+    color_palette<- scale_color_brewer(palette="Set1")
+    fill_palette<- scale_fill_brewer(palette="Set1")
+  }else{
+    color_palette<- scale_color_discrete()
+    fill_palette<- scale_fill_discrete()
+  }
+
+  req(length(markers)>=1)
+  if(input$bar_type==1)
+    myBarMap(dat,geneset=markers,color_by=input$color_by,facet_by=input$color_by,cluster="column",logMode=input$log_mode) + monocle:::monocle_theme_opts() + color_palette + fill_palette + guides(fill=FALSE)
+  else
+    mySummaryBarPlot(dat,geneset=markers,metric=input$bar_metric,color_by=input$color_by,facet_by=input$color_by,logMode=input$log_mode) + fill_palette + guides(fill=FALSE)
+})
+```
+
+### Gene Expression Info
+
+```{r}
+DT::renderDataTable({
+  req(input$marker_genes)
+  #Process marker_genes input  
+  markers<-lookupGeneId(dat,str_trim(unlist(str_split(input$marker_genes,","))))
+  sub.melt<-meltCDS(dat,geneset=markers)
+  facet_by_melt<-strsplit(input$color_by,"\\+")[[1]]
+  sub.melt.summary<-sub.melt %>%
+    dplyr::group_by_(.dots=c("gene_short_name",facet_by_melt)) %>%
+    dplyr::summarise(mean=mean(value),median=median(value),sd=sd(value),upper_bound=mean+sd,lower_bound=max(mean-sd,0))
+
+  sub.melt.summary  
+  sub.melt.summary<-sub.melt %>%
+    dplyr::group_by_(.dots=c("gene_short_name",facet_by_melt)) %>%
+    dplyr::summarise(mean=mean(value),median=median(value),sd=sd(value),upper_bound=mean+sd,lower_bound=max(mean-sd,0))
+  
+})
+```
